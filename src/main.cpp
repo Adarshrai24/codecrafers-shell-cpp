@@ -38,12 +38,57 @@ fs::path findPath(const std::string &filename)
 std::vector<std::string> parse(const std::string &line)
 {
   std::vector<std::string> token;
-  std::istringstream iss(line);
   std::string word;
-  while (iss >> word)
+  bool in_quotes = false;
+  for (int i = 0; i < line.size(); i++) 
+  {
+    char c = line[i];
+    if (c == '\'')
+    {
+      if (!in_quotes)
+      {
+        if (i < line.size() - 1 && line[i+1] == '\'')
+        {
+          i++;
+        }
+        else
+        {
+          in_quotes = true;
+        }
+      } 
+      else 
+      {
+        if (i < line.size() - 1 && line[i+1] == '\'')
+        {
+          i++;
+        }
+        else 
+        {
+          in_quotes = false;
+          token.push_back(word);
+          word.clear();
+        }
+      }
+    }
+    else if (std::isspace(c) && !in_quotes)
+    {
+      if (!word.empty())
+      {
+        token.push_back(word);
+        word.clear();
+      }
+    }
+    else 
+    {
+      word += c;
+    }
+  }
+
+  if (!word.empty()) 
   {
     token.push_back(word);
   }
+
   return token;
 }
 
@@ -64,6 +109,7 @@ int main()
       continue;
     }
     std::string command = tokens[0];
+    //std::cout << command << std::endl;
     if (builtin.count(command))
     {
       if (command == "exit")
