@@ -39,13 +39,48 @@ std::vector<std::string> parse(const std::string &line)
 {
   std::vector<std::string> token;
   std::string word;
-  bool in_quotes = false;
+  bool in_single_quotes = false;
+  bool in_double_quotes = false;
   for (int i = 0; i < line.size(); i++) 
   {
     char c = line[i];
-    if (c == '\'')
+
+    if (c == '\\' && !in_single_quotes)
     {
-      if (!in_quotes)
+      if (i < line.size()-1)
+      {
+        word += line[i+1];
+        i++;
+      }
+    }
+    else if (c == '\"' && !in_single_quotes)
+    {
+      if (!in_double_quotes)
+      {
+        if (i < line.size()-1 && line[i+1] == '\"')
+        {
+          i++;
+        }
+        else 
+        {
+          in_double_quotes = true;
+        }
+      }
+      else 
+      {
+        if (i < line.size()-1 && line[i+1] == '\"')
+        {
+          i++;
+        }
+        else 
+        {
+          in_double_quotes = false;
+        }
+      }
+    }
+    else if (c == '\'' && !in_double_quotes)
+    {
+      if (!in_single_quotes)
       {
         if (i < line.size() - 1 && line[i+1] == '\'')
         {
@@ -53,7 +88,7 @@ std::vector<std::string> parse(const std::string &line)
         }
         else
         {
-          in_quotes = true;
+          in_single_quotes = true;
         }
       } 
       else 
@@ -64,13 +99,11 @@ std::vector<std::string> parse(const std::string &line)
         }
         else 
         {
-          in_quotes = false;
-          token.push_back(word);
-          word.clear();
+          in_single_quotes = false;
         }
       }
     }
-    else if (std::isspace(c) && !in_quotes)
+    else if (std::isspace(c) && (!in_single_quotes && !in_double_quotes))
     {
       if (!word.empty())
       {
