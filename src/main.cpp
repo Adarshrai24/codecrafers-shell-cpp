@@ -146,6 +146,8 @@ int main()
 
     int stdout_index = -1;
     int stderr_index = -1;
+    bool stdout_append = false;
+    bool stderr_append = false;
     std::string stdout_file;
     std::string stderr_file;
 
@@ -156,10 +158,22 @@ int main()
             stdout_index = i;
             stdout_file = tokens[i + 1];
         }
+        else if ((tokens[i] == ">>" || tokens[i] == "1>>") && i + 1 < tokens.size())
+        {
+            stdout_index = i;
+            stdout_file = tokens[i + 1];
+            stdout_append = true;
+        }
         else if (tokens[i] == "2>" && i + 1 < tokens.size())
         {
             stderr_index = i;
             stderr_file = tokens[i + 1];
+        }
+        else if (tokens[i] == "2>>" && i + 1 < tokens.size())
+        {
+            stderr_index = i;
+            stderr_file = tokens[i + 1];
+            stderr_append = true;
         }
     }
 
@@ -180,7 +194,8 @@ int main()
       int saved_stderr = -1;
       if (stdout_index != -1)
       {
-        int fd = open(stdout_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        int flags = O_WRONLY | O_CREAT | (stdout_append ? O_APPEND : O_TRUNC);
+        int fd = open(stdout_file.c_str(), flags, 0644);
         saved_stdout = dup(STDOUT_FILENO);
         dup2(fd, STDOUT_FILENO);
         close(fd);
@@ -188,7 +203,8 @@ int main()
 
       if (stderr_index != -1) 
       {
-        int fd = open(stderr_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        int flags = O_WRONLY | O_CREAT | (stderr_append ? O_APPEND : O_TRUNC);
+        int fd = open(stderr_file.c_str(), flags, 0644);
         saved_stderr = dup(STDERR_FILENO);
         dup2(fd, STDERR_FILENO);
         close(fd);
@@ -278,13 +294,15 @@ int main()
         {
           if (stdout_index != -1)
           {
-            int fd = open(stdout_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            int flags = O_WRONLY | O_CREAT | (stdout_append ? O_APPEND : O_TRUNC);
+            int fd = open(stdout_file.c_str(), flags, 0644);
             dup2(fd, STDOUT_FILENO);
             close(fd);
           }
           if (stderr_index != -1)
           {
-            int fd = open(stderr_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            int flags = O_WRONLY | O_CREAT | (stderr_append ? O_APPEND : O_TRUNC);
+            int fd = open(stderr_file.c_str(), flags, 0644);
             dup2(fd, STDERR_FILENO);
             close(fd);
           }
