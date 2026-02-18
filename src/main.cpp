@@ -8,6 +8,7 @@
 #include <fstream>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 
 namespace fs = std::filesystem;
 // finding the file path, in PATH environment variable
@@ -41,7 +42,7 @@ std::vector<std::string> parse(const std::string &line)
   std::string word;
   bool in_single_quotes = false;
   bool in_double_quotes = false;
-  for (int i = 0; i < line.size(); i++) 
+  for (int i = 0; i < line.size(); i++)
   {
     char c = line[i];
 
@@ -61,18 +62,18 @@ std::vector<std::string> parse(const std::string &line)
         {
           i++;
         }
-        else 
+        else
         {
           in_double_quotes = true;
         }
       }
-      else 
+      else
       {
         if (i < line.size()-1 && line[i+1] == '\"')
         {
           i++;
         }
-        else 
+        else
         {
           in_double_quotes = false;
         }
@@ -90,14 +91,14 @@ std::vector<std::string> parse(const std::string &line)
         {
           in_single_quotes = true;
         }
-      } 
-      else 
+      }
+      else
       {
         if (i < line.size() - 1 && line[i+1] == '\'')
         {
           i++;
         }
-        else 
+        else
         {
           in_single_quotes = false;
         }
@@ -111,13 +112,13 @@ std::vector<std::string> parse(const std::string &line)
         word.clear();
       }
     }
-    else 
+    else
     {
       word += c;
     }
   }
 
-  if (!word.empty()) 
+  if (!word.empty())
   {
     token.push_back(word);
   }
@@ -131,6 +132,7 @@ int main()
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
   std::unordered_set<std::string> builtin = {"exit", "type", "echo", "pwd", "cd"}; // builtin commands list
+
   while (true)
   {
     std::cout << "$ ";
@@ -141,28 +143,75 @@ int main()
     {
       continue;
     }
-    std::string command = tokens[0];
-    //std::cout << command << std::endl;
+
+    int stdout_index = -1;
+    int stderr_index = -1;
+    std::string stdout_file;
+    std::string stderr_file;
+
+    for (int i = 0; i < tokens.size(); i++)
+    {
+        if ((tokens[i] == ">" || tokens[i] == "1>") && i + 1 < tokens.size())
+        {
+            stdout_index = i;
+            stdout_file = tokens[i + 1];
+        }
+        else if (tokens[i] == "2>" && i + 1 < tokens.size())
+        {
+            stderr_index = i;
+            stderr_file = tokens[i + 1];
+        }
+    }
+
+    std::vector<std::string> clean_tokens;
+    for (int i = 0; i < tokens.size(); i++) 
+    {
+      if ((stdout_index != -1 && (i == stdout_index || i-1 == stdout_index) || (stderr_index != -1 && (i == stderr_index || i-1 == stderr_index)))) 
+      {
+        continue;
+      }
+      clean_tokens.push_back(tokens[i]);
+    }
+    std::string command = clean_tokens[0];
+
     if (builtin.count(command))
     {
+      int saved_stdout = -1;
+      int saved_stderr = -1;
+      if (stdout_index != -1)
+      {
+        int fd = open(stdout_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        saved_stdout = dup(STDOUT_FILENO);
+        dup2(fd, STDOUT_FILENO);
+        close(fd);
+      }
+
+      if (stderr_index != -1) 
+      {
+        int fd = open(stderr_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        saved_stderr = dup(STDERR_FILENO);
+        dup2(fd, STDERR_FILENO);
+        close(fd);
+      }
+
       if (command == "exit")
       {
         break;
       }
       if (command == "echo")
       {
-        for (int i = 1; i < tokens.size(); i++)
+        for (int i = 1; i < clean_tokens.size(); i++)
         {
-          std::cout << tokens[i] << ' ';
+          std::cout << clean_tokens[i] << ' ';
         }
         std::cout << std::endl;
       }
       else if (command == "type")
       {
         std::string check = "";
-        if (tokens.size() > 1)
+        if (clean_tokens.size() > 1)
         {
-          check = tokens[1];
+          check = clean_tokens[1];
         }
         if (builtin.count(check))
         {
@@ -187,18 +236,29 @@ int main()
       }
       else if (command == "cd")
       {
-        if (tokens.size() < 2) 
+        if (clean_tokens.size() < 2)
         {
           continue;
         }
-        if (tokens[1] == "~") 
+        if (clean_tokens[1] == "~")
         {
-          tokens[1] = getenv("HOME");
+          clean_tokens[1] = getenv("HOME");
         }
-        if (chdir(tokens[1].c_str()) != 0)
+        if (chdir(clean_tokens[1].c_str()) != 0)
         {
-          std::cout << tokens[1].c_str() << ": No such file or directory" << std::endl;
+          std::cout << clean_tokens[1].c_str() << ": No such file or directory" << std::endl;
         }
+      }
+
+      if (stdout_index != -1)
+      {
+        dup2(saved_stdout, STDOUT_FILENO);
+        close(saved_stdout);
+      }
+      if (stderr_index != -1)
+      {
+        dup2(saved_stderr, STDERR_FILENO);
+        close(saved_stderr);
       }
     }
     else
@@ -207,14 +267,27 @@ int main()
       if (!file_path.empty())
       {
         std::vector<char *> argv;
-        for (int i = 0; i < tokens.size(); i++)
+        for (int i = 0; i < clean_tokens.size(); i++)
         {
-          argv.push_back(const_cast<char *>(tokens[i].c_str()));
+          argv.push_back(const_cast<char *>(clean_tokens[i].c_str()));
         }
         argv.push_back(nullptr);
+
         pid_t pid = fork();
         if (pid == 0)
         {
+          if (stdout_index != -1)
+          {
+            int fd = open(stdout_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            dup2(fd, STDOUT_FILENO);
+            close(fd);
+          }
+          if (stderr_index != -1)
+          {
+            int fd = open(stderr_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            dup2(fd, STDERR_FILENO);
+            close(fd);
+          }
           execvp(file_path.c_str(), argv.data());
           perror("exec failed");
           exit(1);
