@@ -9,6 +9,10 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <readline/readline.h>
+#include <readline/history.h>
+#include "autocomplete.hpp"
+#include "builtin.hpp"
 
 namespace fs = std::filesystem;
 // finding the file path, in PATH environment variable
@@ -131,13 +135,21 @@ int main()
   // Flush after every std::cout / std:cerr
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
-  std::unordered_set<std::string> builtin = {"exit", "type", "echo", "pwd", "cd"}; // builtin commands list
+  
+  rl_bind_key('\t', rl_complete);
+  rl_attempted_completion_function = completion;
 
   while (true)
   {
-    std::cout << "$ ";
-    std::string input;
-    std::getline(std::cin, input);
+    char *line = readline("$ ");
+    if (!line) {
+        break;
+    }
+    if (*line) {
+        add_history(line);
+    }
+    std::string input(line);
+    free(line);
     auto tokens = parse(input);
     if (tokens.empty())
     {
