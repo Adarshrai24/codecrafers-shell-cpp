@@ -13,32 +13,7 @@
 #include <readline/history.h>
 #include "autocomplete.hpp"
 #include "builtin.hpp"
-
-namespace fs = std::filesystem;
-// finding the file path, in PATH environment variable
-fs::path findPath(const std::string &filename)
-{
-  std::string path_env = std::getenv("PATH");
-#ifdef _WIN32
-  const char delimiter = ';';
-#else
-  const char delimiter = ':';
-#endif
-
-  int start = 0, end = path_env.find(delimiter);
-  while (end != std::string::npos)
-  {
-    fs::path dir = path_env.substr(start, end - start);
-    fs::path file_path = dir / filename;
-    if (fs::exists(file_path) && access(file_path.c_str(), X_OK) == 0)
-    {
-      return file_path;
-    }
-    start = end + 1;
-    end = path_env.find(delimiter, start);
-  }
-  return {};
-}
+#include "pathfind.hpp"
 
 std::vector<std::string> parse(const std::string &line)
 {
@@ -130,12 +105,15 @@ std::vector<std::string> parse(const std::string &line)
   return token;
 }
 
+std::vector<std::string> path_commands;
+
 int main()
 {
   // Flush after every std::cout / std:cerr
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
-  
+   
+  path_commands = getPathCommands();
   rl_bind_key('\t', rl_complete);
   rl_attempted_completion_function = completion;
 
