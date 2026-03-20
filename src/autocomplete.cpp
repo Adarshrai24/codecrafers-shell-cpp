@@ -8,7 +8,7 @@ char *generator(const char *text, int state)
 {
     static size_t index;
     static size_t len;
-    bool phase; // 0 = builtins, 1 = PATH commands
+    static bool phase; // 0 = builtins, 1 = PATH commands
     if (!state) 
     {
         index = 0;

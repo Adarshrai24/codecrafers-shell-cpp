@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/shell.dir/src/autocomplete.cpp.o CMakeFiles/shell.dir/src/builtin.cpp.o CMakeFiles/shell.dir/src/main.cpp.o CMakeFiles/shell.dir/src/pathfind.cpp.o -o shell  -lreadline 

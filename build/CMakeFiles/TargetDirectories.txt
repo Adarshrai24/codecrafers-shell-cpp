@@ -1,0 +1,3 @@
+/home/asr/projects/shell-cpp/build/CMakeFiles/shell.dir
+/home/asr/projects/shell-cpp/build/CMakeFiles/edit_cache.dir
+/home/asr/projects/shell-cpp/build/CMakeFiles/rebuild_cache.dir
