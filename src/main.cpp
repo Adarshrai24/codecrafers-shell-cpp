@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <unistd.h>
+#include <algorithm>
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <readline/readline.h>
@@ -116,7 +117,8 @@ std::vector<std::string> parse(const std::string &line)
 }
 
 std::vector<std::string> path_commands;
-
+std::vector<std::vector<std::string>> history;
+int last_append = 0;
 bool executeCommand(
     std::vector<std::string> &clean_tokens,
     int stdout_index,
@@ -153,6 +155,17 @@ bool executeCommand(
 
       if (command == "exit")
       {
+        char *histfile = std::getenv("HISTFILE");
+        if (histfile != nullptr) {
+            std::ofstream file(histfile);   
+            for (auto &his : history) {
+                for (int i = 0; i < his.size(); i++) {
+                    if (i) file << ' ';
+                    file << his[i];
+                }
+                file << std::endl;
+            }
+        }
         return false;
       }
       if (command == "echo")
@@ -209,6 +222,64 @@ bool executeCommand(
         {
           std::cout << clean_tokens[1].c_str() << ": No such file or directory" << std::endl;
         }
+      }
+      else if (command == "history") 
+      {
+          int limit_history = history.size();
+          if (clean_tokens.size() > 2) {
+              
+              if (clean_tokens[1] == "-r") {
+                  std::ifstream file(clean_tokens[2]);
+                  std::string line;
+                  while (std::getline(file, line))
+                  {
+                      if (line.empty())
+                          continue;
+                      history.push_back(parse(line));
+                  }
+              }
+              else if (clean_tokens[1] == "-w") {
+                  std::ofstream file(clean_tokens[2]);
+                  for (auto &his : history) {
+                      for (int i = 0; i < his.size(); i++) {
+                          if (i) file << ' ';
+                          file << his[i];
+                      }
+                      file << std::endl;
+                  }
+              } 
+              else if (clean_tokens[1] == "-a") {
+                  std::ofstream file(clean_tokens[2], std::ios::app);
+                  for (int j = last_append; j < history.size(); j++) {
+                      for (int i = 0; i < history[j].size(); i++) {
+                          if (i) file << ' ';
+                          file << history[j][i];
+                      }
+                      file << std::endl;
+                  }
+                  last_append = history.size();
+              }
+              return true;
+          }
+          else if (clean_tokens.size() > 1) {
+              limit_history = std::stoi(clean_tokens[1]);
+              if (limit_history < 0) {
+                  std::cerr << "history : invalid argument" << std::endl;
+                  return false;
+              }
+          }
+          
+          int start_index = std::max(0, (int)history.size() - limit_history);
+          for (int i = start_index; i < history.size(); i++) {
+              std::cout << i+1 << ' ';
+              for (int j = 0; j < history[i].size(); j++) {
+                  std::cout << history[i][j];
+                  if (j+1 < history[i].size()) {
+                      std::cout << ' ';
+                  }
+              }
+              std::cout << std::endl;
+          }
       }
 
       if (stdout_index != -1)
@@ -283,6 +354,19 @@ int main()
   path_commands = getPathCommands();
   rl_bind_key('\t', rl_complete);
   rl_attempted_completion_function = completion;
+    
+  char *histfile = std::getenv("HISTFILE");
+
+  if (histfile != nullptr) {
+      std::ifstream file(histfile);
+
+      std::string line;
+      while (std::getline(file, line)) {
+          if (line.empty())
+              continue;
+          history.push_back(parse(line));
+      }
+  }
 
   while (true)
   {
@@ -307,7 +391,8 @@ int main()
     bool stderr_append = false;
     std::string stdout_file;
     std::string stderr_file;
-
+    
+    history.push_back(tokens);
     for (int i = 0; i < tokens.size(); i++)
     {
         if ((tokens[i] == ">" || tokens[i] == "1>") && i + 1 < tokens.size())
@@ -343,7 +428,6 @@ int main()
       }
       clean_tokens.push_back(tokens[i]);
     }
-    
     bool is_pipes = false;
     for (auto tk : clean_tokens) 
     {
